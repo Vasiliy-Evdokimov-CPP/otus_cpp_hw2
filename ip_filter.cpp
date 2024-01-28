@@ -3,127 +3,146 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <sstream>
+#include <array>
+#include <algorithm>
 
-// ("",  '.') -> [""]
-// ("11", '.') -> ["11"]
-// ("..", '.') -> ["", "", ""]
-// ("11.", '.') -> ["11", ""]
-// (".11", '.') -> ["", "11"]
-// ("11.22", '.') -> ["11", "22"]
-std::vector<std::string> split(const std::string &str, char d)
+// #define USE_FILE
+
+#ifdef USE_FILE
+    #include <fstream>    
+#endif
+
+const int IP_LEN = 4;
+
+typedef std::vector<std::string> vector_of_strings;
+typedef std::array<int, IP_LEN> ip_address;
+typedef std::vector<ip_address> vector_of_ips;
+
+std::vector<vector_of_strings> ip_pool;
+
+vector_of_ips ips;
+
+int print_ip_count = 0;
+
+vector_of_strings Split(const std::string &str, char delimeter)
 {
-    std::vector<std::string> r;
+    vector_of_strings tokens;
+    std::stringstream stream(str);
+    std::string token;
+    
+    while (std::getline(stream, token, delimeter))
+        tokens.push_back(token);
+    
+    return tokens;
+}
 
-    std::string::size_type start = 0;
-    std::string::size_type stop = str.find_first_of(d);
-    while(stop != std::string::npos)
-    {
-        r.push_back(str.substr(start, stop - start));
+void AddIPLine(std::string line) 
+{
+    if (line.empty()) return;
+    
+    vector_of_strings v = Split(line, '\t');
+    if (v.empty()) return;
+    
+    vector_of_strings ip = Split(v.at(0), '.');
+    if (ip.size() == IP_LEN)
+        ip_pool.push_back(ip);
+}
 
-        start = stop + 1;
-        stop = str.find_first_of(d, start);
-    }
+#ifdef USE_FILE
 
-    r.push_back(str.substr(start));
+void ReadIpPoolFromFile(std::string filename)
+{
+    std::ifstream file(filename);
+    std::string line;    
 
-    return r;
+    while (std::getline(file, line))
+        AddIPLine(line);    
+
+    file.close();
+}
+
+#else
+
+void ReadIpPoolFromCIN()
+{
+    for(std::string line; std::getline(std::cin, line);)
+        AddIPLine(line);
+}
+
+#endif
+
+void PrintIP(const ip_address& IP) 
+{
+    for (int i(0); i < IP_LEN; ++i)
+        std::cout << IP[i] << ((i == (IP_LEN - 1)) ? "" : ".");
+    std::cout << std::endl;
+    
+    print_ip_count++;
+}
+
+void FilterByByte(const int aByte0)
+{
+    for (const auto& ip : ips)
+        if (ip[0] == aByte0)
+            PrintIP(ip);
+}
+
+void FilterByByte(const int aByte0, const int aByte1)
+{
+    for (const auto& ip : ips)
+        if ((ip[0] == aByte0) && (ip[1] == aByte1))
+            PrintIP(ip);
+}
+
+void FilterByAnyByte(const int aByte)
+{
+    for (const auto& ip : ips)
+        for (const auto& octet : ip)
+            if (octet == aByte) {
+                PrintIP(ip);
+                break;
+            }            
 }
 
 int main(int argc, char const *argv[])
 {
     try
     {
-        std::vector<std::vector<std::string> > ip_pool;
 
-        for(std::string line; std::getline(std::cin, line);)
+        #ifdef USE_FILE
+            ReadIpPoolFromFile("ip_filter.tsv");
+        #else    
+            ReadIpPoolFromCIN();
+        #endif       
+
+        for (const auto& line : ip_pool)
         {
-            std::vector<std::string> v = split(line, '\t');
-            ip_pool.push_back(split(v.at(0), '.'));
-        }
+            ip_address buf;
+            for (int i(0); i < IP_LEN; ++i)
+                buf[i] = std::stoi(line.at(i)) & 0xFF;
+            ips.push_back(buf);
+        }    
 
-        // TODO reverse lexicographically sort
-
-        for(std::vector<std::vector<std::string> >::const_iterator ip = ip_pool.cbegin(); ip != ip_pool.cend(); ++ip)
+        std::sort(ips.begin(), ips.end(), [](auto a, auto b)
         {
-            for(std::vector<std::string>::const_iterator ip_part = ip->cbegin(); ip_part != ip->cend(); ++ip_part)
-            {
-                if (ip_part != ip->cbegin())
-                {
-                    std::cout << ".";
+            for (int i = 0; i < IP_LEN; ++i)                        
+                if (a[i] != b[i])
+                    return a[i] > b[i];
+            return false;
+        });
 
-                }
-                std::cout << *ip_part;
-            }
-            std::cout << std::endl;
-        }
+        for(auto ip = ips.cbegin(); ip != ips.cend(); ++ip)
+            PrintIP(*ip);
 
-        // 222.173.235.246
-        // 222.130.177.64
-        // 222.82.198.61
-        // ...
-        // 1.70.44.170
-        // 1.29.168.152
-        // 1.1.234.8
-
-        // TODO filter by first byte and output
-        // ip = filter(1)
-
-        // 1.231.69.33
-        // 1.87.203.225
-        // 1.70.44.170
-        // 1.29.168.152
-        // 1.1.234.8
-
-        // TODO filter by first and second bytes and output
-        // ip = filter(46, 70)
-
-        // 46.70.225.39
-        // 46.70.147.26
-        // 46.70.113.73
-        // 46.70.29.76
-
-        // TODO filter by any byte and output
-        // ip = filter_any(46)
-
-        // 186.204.34.46
-        // 186.46.222.194
-        // 185.46.87.231
-        // 185.46.86.132
-        // 185.46.86.131
-        // 185.46.86.131
-        // 185.46.86.22
-        // 185.46.85.204
-        // 185.46.85.78
-        // 68.46.218.208
-        // 46.251.197.23
-        // 46.223.254.56
-        // 46.223.254.56
-        // 46.182.19.219
-        // 46.161.63.66
-        // 46.161.61.51
-        // 46.161.60.92
-        // 46.161.60.35
-        // 46.161.58.202
-        // 46.161.56.241
-        // 46.161.56.203
-        // 46.161.56.174
-        // 46.161.56.106
-        // 46.161.56.106
-        // 46.101.163.119
-        // 46.101.127.145
-        // 46.70.225.39
-        // 46.70.147.26
-        // 46.70.113.73
-        // 46.70.29.76
-        // 46.55.46.98
-        // 46.49.43.85
-        // 39.46.86.85
-        // 5.189.203.46
+        FilterByByte(1);            
+        FilterByByte(46, 70);
+        FilterByAnyByte(46);
     }
     catch(const std::exception &e)
     {
         std::cerr << e.what() << std::endl;
-    }
+    }    
 
     return 0;
 }

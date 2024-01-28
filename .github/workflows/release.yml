@@ -1,0 +1,83 @@
+name: 'C++ CI'
+
+on:
+  push:
+    branches:
+      - main
+      - feature/github_actions
+  workflow_dispatch:
+
+jobs:
+  build_ubuntu:
+    runs-on: ubuntu-latest
+    permissions: write-all
+
+    outputs:
+      upload_url: ${{ steps.step_output_url.outputs.output_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+      - run: sudo apt-get update && sudo apt-get install cmake -y
+
+      - run: cmake . -DPATCH_VERSION=${{ github.run_number }}
+      - run: cmake --build . --config Release --target package
+      - run: ctest -C Release
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.run_number }}
+          release_name: Release ${{ github.run_number }}
+          draft: false
+          prerelease: false
+      - name: Upload Release Asset Ubuntu
+        id: upload-release-asset        
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./ip_filter-0.0.${{ github.run_number }}-Linux.deb
+          asset_name: ip_filter-0.0.${{ github.run_number }}-Linux.deb
+          asset_content_type: application/vnd.debian.binary-package
+
+      - id: step_output_url
+        env:
+          output_url: ${{ steps.create_release.outputs.upload_url }}
+        run: echo "output_url=$output_url" >> "$GITHUB_OUTPUT"
+
+  build_windows:
+    runs-on: windows-latest
+    needs: build_ubuntu
+    permissions: write-all
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Install CMake
+        uses: ssrobins/install-cmake@v1
+        with:
+          version: 3.24.3
+
+      - run: cmake . -DPATCH_VERSION=${{ github.run_number }}
+      - run: cmake --build . --config Release --target package
+      - run: ctest -C Release
+
+      - name: Upload Release Asset Windows
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.build_ubuntu.outputs.upload_url }}
+          asset_path: ./ip_filter-0.0.${{ github.run_number }}-win64.zip
+          asset_name: ip_filter-0.0.${{ github.run_number }}-Windows.zip
+          asset_content_type: application/zip
