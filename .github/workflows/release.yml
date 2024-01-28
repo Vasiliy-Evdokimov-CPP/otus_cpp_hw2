@@ -1,4 +1,4 @@
-name: 'C++ CI'
+name: 'ip_filter deploy'
 
 on:
   push:
@@ -24,7 +24,6 @@ jobs:
 
       - run: cmake . -DPATCH_VERSION=${{ github.run_number }}
       - run: cmake --build . --config Release --target package
-      - run: ctest -C Release
 
       - name: Create Release
         id: create_release
@@ -69,7 +68,6 @@ jobs:
 
       - run: cmake . -DPATCH_VERSION=${{ github.run_number }}
       - run: cmake --build . --config Release --target package
-      - run: ctest -C Release
 
       - name: Upload Release Asset Windows
         id: upload-release-asset
