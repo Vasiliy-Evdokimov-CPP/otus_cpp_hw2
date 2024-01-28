@@ -105,7 +105,7 @@ void FilterByAnyByte(const int aByte)
             }            
 }
 
-int main(int argc, char const *argv[])
+int main()
 {
     try
     {
